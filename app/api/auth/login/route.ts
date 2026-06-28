@@ -1,28 +1,26 @@
 import { NextResponse } from 'next/server'
-import { FALLBACK_USER } from '@/server/db/mock-data'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { email, password } = body
+    const { email, username, password } = body
+    const identifier = email || username
 
-    // Mock validation
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Username or Email and password are required' },
         { status: 400 }
       )
     }
 
-    // Return successful login response
+    const cleanUsername = identifier.includes('@') ? identifier.split('@')[0] : identifier
+
     return NextResponse.json({
       success: true,
       user: {
-        id: FALLBACK_USER.id,
-        username: email.split('@')[0] || FALLBACK_USER.username,
-        email: email,
-        xp: FALLBACK_USER.xp,
-        totalTokens: FALLBACK_USER.totalTokens,
+        id: 'user_' + cleanUsername,
+        username: cleanUsername,
+        email: identifier.includes('@') ? identifier : `${cleanUsername}@coursecade.com`,
       },
       message: 'Successfully logged in!',
     })

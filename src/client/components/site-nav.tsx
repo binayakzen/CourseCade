@@ -53,6 +53,13 @@ export function SiteNav() {
             }
             if (parsed.username) {
               localStorage.setItem('coursecade_stats_' + parsed.username, JSON.stringify(parsed))
+              try {
+                const regStr = localStorage.getItem('coursecade_accounts_registry')
+                const reg = regStr ? JSON.parse(regStr) : {}
+                reg[parsed.username.toLowerCase()] = parsed
+                if (parsed.email) reg[parsed.email.toLowerCase()] = parsed
+                localStorage.setItem('coursecade_accounts_registry', JSON.stringify(reg))
+              } catch (e) {}
             }
             if (active && typeof parsed.totalTokens === 'number') {
               setTokens(parsed.totalTokens)

@@ -240,6 +240,13 @@ export function sanitizeStorage(username: string = 'binay') {
       if (uChanged) {
         localStorage.setItem('coursecade_user', JSON.stringify(userObj))
         localStorage.setItem('coursecade_stats_' + name, JSON.stringify(userObj))
+        try {
+          const regStr = localStorage.getItem('coursecade_accounts_registry')
+          const reg = regStr ? JSON.parse(regStr) : {}
+          if (userObj.username) reg[userObj.username.toLowerCase()] = userObj
+          if (userObj.email) reg[userObj.email.toLowerCase()] = userObj
+          localStorage.setItem('coursecade_accounts_registry', JSON.stringify(reg))
+        } catch (e) {}
       }
     }
   } catch (e) {}

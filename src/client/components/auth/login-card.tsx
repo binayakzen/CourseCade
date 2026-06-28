@@ -43,14 +43,15 @@ export function LoginCard() {
     }
 
     setIsLoading(true)
-    const cleanUsername = username || email.split('@')[0] || 'user'
+    const inputId = email.trim()
+    const cleanUsername = username.trim() || (inputId.includes('@') ? inputId.split('@')[0] : inputId) || 'user'
 
     try {
       const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login'
       let finalUser: any = {
         id: 'user_' + Date.now(),
         username: cleanUsername,
-        email: email,
+        email: inputId.includes('@') ? inputId : `${cleanUsername}@coursecade.com`,
         xp: isSignUp ? 1000 : 0,
         totalTokens: isSignUp ? 1000 : 0,
         hoursWatched: 0,
@@ -65,7 +66,7 @@ export function LoginCard() {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: cleanUsername, email, password }),
+          body: JSON.stringify({ username: cleanUsername, email: inputId, password }),
         })
         const data = await res.json()
         if (res.ok && data.user) {
@@ -76,25 +77,53 @@ export function LoginCard() {
       }
 
       if (typeof window !== 'undefined') {
+        let registry: any = {}
+        try {
+          const regStr = localStorage.getItem('coursecade_accounts_registry')
+          if (regStr) registry = JSON.parse(regStr)
+        } catch (e) {}
+
         if (!isSignUp) {
-          try {
-            const saved = localStorage.getItem('coursecade_stats_' + cleanUsername)
-            if (saved) {
-              finalUser = { ...finalUser, ...JSON.parse(saved) }
-            } else {
-              const currentSaved = localStorage.getItem('coursecade_user')
-              if (currentSaved) {
-                const parsed = JSON.parse(currentSaved)
-                if (parsed.username === cleanUsername || parsed.email === email) {
-                  finalUser = { ...finalUser, ...parsed }
-                }
+          let matched: any = null
+          const lookupKey = inputId.toLowerCase()
+          const cleanKey = cleanUsername.toLowerCase()
+
+          // 1. Check registry
+          if (registry[lookupKey]) matched = registry[lookupKey]
+          else if (registry[cleanKey]) matched = registry[cleanKey]
+
+          // 2. Scan all local storage keys for existing accounts
+          if (!matched) {
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i)
+              if (k && (k.startsWith('coursecade_stats_') || k === 'coursecade_user')) {
+                try {
+                  const val = localStorage.getItem(k)
+                  if (val) {
+                    const p = JSON.parse(val)
+                    if (p.username?.toLowerCase() === lookupKey || p.username?.toLowerCase() === cleanKey || p.email?.toLowerCase() === lookupKey) {
+                      matched = p
+                      break
+                    }
+                  }
+                } catch (e) {}
               }
             }
-          } catch (e) {}
+          }
+
+          if (matched) {
+            finalUser = { ...finalUser, ...matched }
+          }
         }
+
+        // Save to registry under both username and email
+        if (finalUser.username) registry[finalUser.username.toLowerCase()] = finalUser
+        if (finalUser.email) registry[finalUser.email.toLowerCase()] = finalUser
+
         localStorage.setItem('coursecade_visited', 'true')
+        localStorage.setItem('coursecade_accounts_registry', JSON.stringify(registry))
         localStorage.setItem('coursecade_user', JSON.stringify(finalUser))
-        localStorage.setItem('coursecade_stats_' + cleanUsername, JSON.stringify(finalUser))
+        localStorage.setItem('coursecade_stats_' + finalUser.username, JSON.stringify(finalUser))
         window.dispatchEvent(new Event('authChange'))
       }
 

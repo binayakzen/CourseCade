@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { FALLBACK_USER } from '@/server/db/mock-data'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { username, email, password } = body
+    const identifier = email || username
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email/Username and password are required' },
         { status: 400 }
       )
     }
