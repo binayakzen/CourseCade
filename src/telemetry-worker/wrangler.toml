@@ -1,0 +1,7 @@
+name = "coursecade-telemetry-edge"
+main = "src/index.ts"
+compatibility_date = "2024-03-01"
+
+[vars]
+EDGE_HMAC_SECRET = "coursecade_super_secret_edge_key_2026"
+ALLOWED_ORIGIN = "*"
