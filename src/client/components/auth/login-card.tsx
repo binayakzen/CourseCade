@@ -1,24 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, User, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function LoginCard() {
   const router = useRouter()
-  // RULE: First visit defaults to Sign Up (Create Account)
   const [isSignUp, setIsSignUp] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  // PRE-FILLED CREDENTIALS FOR BINAY
-  const [username, setUsername] = useState('binay')
-  const [email, setEmail] = useState('binay@coursecade.com')
-  const [password, setPassword] = useState('coursecade2026')
+  // Blank credentials by default so users type their own details
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
+
+  // Auto-detect visitor history: first visit -> Sign Up, returning visitor -> Login
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const visited = localStorage.getItem('coursecade_visited')
+      const storedUser = localStorage.getItem('coursecade_user')
+      if (visited === 'true' || storedUser) {
+        setIsSignUp(false)
+      } else {
+        setIsSignUp(true)
+      }
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +43,7 @@ export function LoginCard() {
     }
 
     setIsLoading(true)
-    const cleanUsername = username || email.split('@')[0] || 'binay'
+    const cleanUsername = username || email.split('@')[0] || 'user'
 
     try {
       const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login'
@@ -39,14 +51,14 @@ export function LoginCard() {
         id: 'user_' + Date.now(),
         username: cleanUsername,
         email: email,
-        xp: 0,
+        xp: isSignUp ? 1000 : 0,
         totalTokens: isSignUp ? 1000 : 0,
         hoursWatched: 0,
         coursesCompleted: 0,
         currentStreak: 1,
         longestStreak: 1,
-        rankTier: cleanUsername === 'binay' ? 5 : 0,
-        rank: cleanUsername === 'binay' ? 'Platinum' : 'Stone',
+        rankTier: 0,
+        rank: 'Stone',
       }
 
       try {
@@ -67,9 +79,20 @@ export function LoginCard() {
         if (!isSignUp) {
           try {
             const saved = localStorage.getItem('coursecade_stats_' + cleanUsername)
-            if (saved) finalUser = { ...finalUser, ...JSON.parse(saved) }
+            if (saved) {
+              finalUser = { ...finalUser, ...JSON.parse(saved) }
+            } else {
+              const currentSaved = localStorage.getItem('coursecade_user')
+              if (currentSaved) {
+                const parsed = JSON.parse(currentSaved)
+                if (parsed.username === cleanUsername || parsed.email === email) {
+                  finalUser = { ...finalUser, ...parsed }
+                }
+              }
+            }
           } catch (e) {}
         }
+        localStorage.setItem('coursecade_visited', 'true')
         localStorage.setItem('coursecade_user', JSON.stringify(finalUser))
         localStorage.setItem('coursecade_stats_' + cleanUsername, JSON.stringify(finalUser))
         window.dispatchEvent(new Event('authChange'))
