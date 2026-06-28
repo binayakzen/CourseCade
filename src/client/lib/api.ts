@@ -257,12 +257,17 @@ export async function fetchProfile(): Promise<Profile> {
         const parsed = JSON.parse(stored)
         if (parsed.username) data.username = parsed.username
         data.xp = parsed.xp ?? 0
-        data.totalTokens = parsed.totalTokens ?? 0
-        data.rankTier = parsed.rankTier ?? 0
-        data.rank = parsed.rank || 'Stone'
+        data.totalTokens = parsed.totalTokens ?? data.totalTokens ?? 0
       }
     } catch (e) {}
   }
+  let calcTier = 0
+  const tokens = data.totalTokens || 0
+  for (let i = 0; i < RANK_TIERS.length; i++) {
+    if (tokens >= RANK_TIERS[i].threshold) calcTier = i
+  }
+  data.rankTier = calcTier
+  data.rank = RANK_TIERS[calcTier].name
   return data
 }
 

@@ -9,13 +9,25 @@ export function RankTimeline({
   profile: Profile | null
   celebrateTier?: number | null
 }) {
-  const currentTier = profile?.rankTier ?? 2
+  const tokens = profile?.totalTokens ?? 0
+  let calculatedTier = 0
+  for (let i = 0; i < RANK_TIERS.length; i++) {
+    if (tokens >= RANK_TIERS[i].threshold) calculatedTier = i
+  }
+  const currentTier = calculatedTier
   const nextTier = RANK_TIERS[currentTier + 1]
-  const tokens = profile?.totalTokens ?? 7020
   const tokensToNext = nextTier ? Math.max(0, nextTier.threshold - tokens) : 0
 
-  // progress fill of the connecting line (0-100)
-  const fillPct = (currentTier / (RANK_TIERS.length - 1)) * 100
+  // Calculate smooth sync fill percentage across the timeline
+  let fillPct = 0
+  if (!nextTier) {
+    fillPct = 100
+  } else {
+    const tierSpan = nextTier.threshold - RANK_TIERS[currentTier].threshold
+    const progressInTier = tokens - RANK_TIERS[currentTier].threshold
+    const tierProgressPct = tierSpan > 0 ? Math.min(1, Math.max(0, progressInTier / tierSpan)) : 0
+    fillPct = ((currentTier + tierProgressPct) / (RANK_TIERS.length - 1)) * 100
+  }
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200/60 flex flex-col justify-between h-full">

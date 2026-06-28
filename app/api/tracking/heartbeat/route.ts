@@ -59,9 +59,17 @@ export async function POST(request: Request) {
           .limit(1)
 
         const existingMax = uc ? (uc.maxPlayheadTime || 0) : 0
-        const newMax = Math.max(existingMax, Math.round(currentPlayheadTime), Math.round(maxPlayheadTime))
+        let newMax = Math.max(existingMax, Math.round(currentPlayheadTime), Math.round(maxPlayheadTime))
 
-        if (currentPlayheadTime > 0 && currentPlayheadTime <= existingMax && existingMax > 5) {
+        const prevPlayhead = payload.prevPlayheadTime || 0
+        const isSkipping = focusStatus === 'suspended' || (currentPlayheadTime - prevPlayhead > 15 && currentPlayheadTime > existingMax + 15)
+
+        if (isSkipping) {
+          newMax = existingMax
+          tokensAwarded = 0
+          telemetryStatus = 'Anti-Cheat Suspended [Rapid/Long Skipping Malpractice]'
+          monitoringLog = `🚨 Anti-Cheat Suspended: Rapid or long skipping detected! Seek back to verified progress (${existingMax}s) to resume mining.`
+        } else if (currentPlayheadTime > 0 && currentPlayheadTime <= existingMax && existingMax > 5) {
           tokensAwarded = 0
           telemetryStatus = 'Anti-Cheat Blocked [Re-watching Credited Playback]'
           monitoringLog = `🛡️ Edge Anti-Cheat: Playback (${Math.round(currentPlayheadTime)}s) already verified (High-water mark: ${existingMax}s). +0 Tokens.`

@@ -27,6 +27,7 @@ export default function WatchPage({
   const [liveTokens, setLiveTokens] = useState(0)
   const [focused, setFocused] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isSuspended, setIsSuspended] = useState(false)
   const [telemetryLog, setTelemetryLog] = useState('Initializing Anti-Cheat monitoring engine...')
 
   // Mock playback speed
@@ -38,12 +39,14 @@ export default function WatchPage({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const focusedRef = useRef(focused)
   const isPlayingRef = useRef(isPlaying)
+  const isSuspendedRef = useRef(isSuspended)
   const playheadRef = useRef(0)
   const prevPlayheadRef = useRef(0)
   const maxWatchedRef = useRef(0)
   const ytPlayerRef = useRef<any>(null)
   focusedRef.current = focused
   isPlayingRef.current = isPlaying
+  isSuspendedRef.current = isSuspended
 
   // Load course details
   useEffect(() => {
@@ -298,7 +301,20 @@ export default function WatchPage({
     const prevPlayhead = prevPlayheadRef.current
     prevPlayheadRef.current = currentPlayhead
 
-    if (currentPlayhead > maxWatchedRef.current) {
+    // Detect Rapid/Long Skipping Malpractice (jump > 15s forward beyond verified max)
+    if (currentPlayhead - prevPlayhead > 15 && currentPlayhead > maxWatchedRef.current + 15) {
+      if (!isSuspendedRef.current) {
+        isSuspendedRef.current = true
+        setIsSuspended(true)
+      }
+    } else if (currentPlayhead <= maxWatchedRef.current + 5) {
+      if (isSuspendedRef.current) {
+        isSuspendedRef.current = false
+        setIsSuspended(false)
+      }
+    }
+
+    if (!isSuspendedRef.current && currentPlayhead > maxWatchedRef.current) {
       maxWatchedRef.current = currentPlayhead
     }
 
@@ -316,8 +332,8 @@ export default function WatchPage({
       prevPlayheadTime: prevPlayhead,
       maxPlayheadTime: maxWatchedRef.current,
       timeDeltaSeconds: 5,
-      focusStatus: !isTabVisible || !focusedRef.current ? 'hidden' : (!isPlayingRef.current ? 'paused' : 'active'),
-      attentionScore,
+      focusStatus: isSuspendedRef.current ? 'suspended' : (!isTabVisible || !focusedRef.current ? 'hidden' : (!isPlayingRef.current ? 'paused' : 'active')),
+      attentionScore: isSuspendedRef.current ? 0.0 : attentionScore,
     }
 
     try {
@@ -388,6 +404,20 @@ export default function WatchPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
+          {isSuspended && (
+            <div className="rounded-2xl border-2 border-red-500 bg-red-950/90 p-4 text-white shadow-2xl animate-pulse flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" role="img" aria-label="warning">🚨</span>
+                <div>
+                  <h4 className="font-bold text-red-400 font-heading">Anti-Cheat Suspension Active</h4>
+                  <p className="text-xs text-red-200">
+                    Rapid or long skipping detected! Token mining and progress updates are paused. Please seek back to your verified progress timestamp (<span className="font-mono font-bold text-white">{Math.floor(maxWatchedRef.current / 60)}:{String(maxWatchedRef.current % 60).padStart(2, '0')}</span>) to automatically lift suspension.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Playable Embedded YouTube Course Player */}
           <div className="relative aspect-video overflow-hidden rounded-3xl border border-gray-800 bg-black shadow-2xl">
             <iframe
@@ -425,32 +455,32 @@ export default function WatchPage({
 
         <div className="flex flex-col gap-6 lg:col-span-1">
           {/* Live Anti-Cheat Monitoring HUD Card */}
-          <div className={`rounded-3xl p-5 border shadow-lg transition-colors ${focused && isPlaying ? 'bg-[#121318] border-[#a3e635]/40 text-white' : !focused ? 'bg-red-950/40 border-red-500/50 text-red-200 animate-pulse' : 'bg-amber-950/40 border-amber-500/50 text-amber-200'}`}>
+          <div className={`rounded-3xl p-5 border shadow-lg transition-colors ${isSuspended ? 'bg-red-950 border-red-500 text-red-200 animate-pulse' : focused && isPlaying ? 'bg-[#121318] border-[#a3e635]/40 text-white' : !focused ? 'bg-red-950/40 border-red-500/50 text-red-200 animate-pulse' : 'bg-amber-950/40 border-amber-500/50 text-amber-200'}`}>
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                {focused && isPlaying ? <ShieldCheck className="size-5 text-[#a3e635]" /> : <ShieldAlert className={`size-5 ${!focused ? 'text-red-400' : 'text-amber-400'}`} />}
+                {isSuspended || !focused ? <ShieldAlert className="size-5 text-red-400" /> : isPlaying ? <ShieldCheck className="size-5 text-[#a3e635]" /> : <ShieldAlert className="size-5 text-amber-400" />}
                 <span className="font-sans text-xs font-black uppercase tracking-wider">
                   Anti-Cheat Daemon
                 </span>
               </div>
-              <span className={`font-mono text-[10px] font-bold px-2.5 py-1 rounded-full ${focused && isPlaying ? 'bg-[#a3e635] text-black' : !focused ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'}`}>
-                {focused && isPlaying ? 'FOCUS ACTIVE' : !focused ? 'TAB SUSPENDED' : 'PLAYBACK PAUSED'}
+              <span className={`font-mono text-[10px] font-bold px-2.5 py-1 rounded-full ${isSuspended ? 'bg-red-600 text-white animate-bounce' : focused && isPlaying ? 'bg-[#a3e635] text-black' : !focused ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'}`}>
+                {isSuspended ? 'SKIPPING SUSPENDED' : focused && isPlaying ? 'FOCUS ACTIVE' : !focused ? 'TAB SUSPENDED' : 'PLAYBACK PAUSED'}
               </span>
             </div>
             <p className="font-mono text-xs mt-3 text-gray-300 leading-relaxed min-h-[40px]">
-              {telemetryLog}
+              {isSuspended ? `🚨 Anti-Cheat Suspended: Fast/long skipping detected beyond verified timestamp (${Math.floor(maxWatchedRef.current / 60)}:${String(maxWatchedRef.current % 60).padStart(2, '0')}). Seek back to resume.` : telemetryLog}
             </p>
             <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-gray-400 font-mono">
               <span>Sync Rate: 5s</span>
-              <span className={focused && isPlaying ? "text-[#a3e635] font-bold" : "text-gray-400 font-bold"}>
-                {focused && isPlaying ? '+15 Tokens / tick' : 'Mining Suspended'}
+              <span className={!isSuspended && focused && isPlaying ? "text-[#a3e635] font-bold" : "text-red-400 font-bold"}>
+                {!isSuspended && focused && isPlaying ? '+15 Tokens / tick' : 'Mining Suspended'}
               </span>
             </div>
             <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
               <span className="text-[11px] font-mono text-gray-300">Playback Signal:</span>
-              <span className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all ${isPlaying ? 'bg-[#a3e635]/20 text-[#a3e635] border border-[#a3e635]/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}`}>
-                <span className={`size-2 rounded-full ${isPlaying ? 'bg-[#a3e635] animate-pulse' : 'bg-amber-400'}`} />
-                {isPlaying ? 'Auto-Detected: PLAYING' : 'Auto-Detected: PAUSED'}
+              <span className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all ${isSuspended ? 'bg-red-500/20 text-red-300 border border-red-500/40' : isPlaying ? 'bg-[#a3e635]/20 text-[#a3e635] border border-[#a3e635]/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}`}>
+                <span className={`size-2 rounded-full ${isSuspended ? 'bg-red-500' : isPlaying ? 'bg-[#a3e635] animate-pulse' : 'bg-amber-400'}`} />
+                {isSuspended ? 'Malpractice: SKIPPING' : isPlaying ? 'Auto-Detected: PLAYING' : 'Auto-Detected: PAUSED'}
               </span>
             </div>
           </div>
